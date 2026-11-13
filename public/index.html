@@ -22,6 +22,9 @@ button:disabled{opacity:.5}
 .opts button.on{background:var(--ok)}
 .called{background:#ffd166;color:#3a2a00;text-align:center;font-size:22px;font-weight:600;border-radius:12px;padding:16px;margin:12px 0}
 .err{color:#d1242f;min-height:1.4em}
+.res{border-radius:10px;padding:12px;margin-top:10px;background:var(--bg);border:1px solid var(--bd)}
+.res.good{border-color:var(--ok)}
+.res.bad{border-color:#d1242f}
 .tfr{display:grid;grid-template-columns:28px 1fr 1fr;gap:8px;align-items:center;margin:6px 0}
 .tfr button{margin:0;padding:12px 0}
 .tfr button.on{background:var(--ok)}
@@ -36,7 +39,7 @@ button:disabled{opacity:.5}
   var qs = new URLSearchParams(location.search);
   var code = (qs.get("c") || "").replace(/\D/g, "").slice(0, 4);
   var K = function (n) { return "tt." + code + "." + n; };
-  var tfSel = [null, null, null, null], tfQ = "", st = null, err = "", name = "", tok = "", timer = null, typing = false, pick = "", last = "";
+  var tfSel = [], tfQ = "", st = null, err = "", name = "", tok = "", timer = null, typing = false, pick = "", last = "";
   function get(k) { try { return localStorage.getItem(k) || ""; } catch (e) { return ""; } }
   function put(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
   function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
@@ -66,12 +69,21 @@ button:disabled{opacity:.5}
     if (!q) h += '<div class="card"><b>Câu hỏi</b><p class="mut">Chưa có câu hỏi. Khi thầy/cô đưa câu hỏi, ô trả lời sẽ hiện ngay ở đây (không cần tải lại trang).</p></div>';
     if (q) {
       h += '<div class="card"><b>' + (q.open ? "Câu hỏi" : "Câu hỏi (đã đóng)") + "</b>" + (q.label ? '<div class="mut">' + esc(q.label) + "</div>" : "");
-      if (tfQ !== q.id) { tfQ = q.id; tfSel = [null, null, null, null]; }
-      if (q.mine != null) h += '<p>Em đã trả lời: <b>' + esc(Array.isArray(q.mine) ? q.mine.map(function (x, i) { return "abcd"[i] + ":" + (x ? "Đ" : "S"); }).join("  ") : q.mine) + "</b></p>";
-      else if (q.open && q.type === "tf") h += '<div class="tf">' + [0, 1, 2, 3].map(function (i) { return '<div class="tfr"><b>' + "abcd"[i] + ')</b><button data-tf="' + i + ':1" class="' + (tfSel[i] === true ? "on" : "alt") + '">Đúng</button><button data-tf="' + i + ':0" class="' + (tfSel[i] === false ? "on s" : "alt") + '">Sai</button></div>'; }).join("") + '<button id="sendTf"' + (tfSel.every(function (x) { return x !== null; }) ? "" : " disabled") + ">Gửi</button></div>";
+      var n = q.n || 4, L = "abcdef";
+      if (tfQ !== q.id) { tfQ = q.id; tfSel = []; for (var z = 0; z < n; z++) tfSel.push(null); }
+      var DS = function (arr) { return arr.map(function (x, i) { return L[i] + ":" + (x ? "Đ" : "S"); }).join("  "); };
+      if (q.mine != null) h += '<p>Em đã trả lời: <b>' + esc(Array.isArray(q.mine) ? DS(q.mine) : q.mine) + "</b></p>";
+      else if (q.open && q.type === "tf") h += '<div class="tf">' + tfSel.map(function (v, i) { return '<div class="tfr"><b>' + L[i] + ')</b><button data-tf="' + i + ':1" class="' + (v === true ? "on" : "alt") + '">Đúng</button><button data-tf="' + i + ':0" class="' + (v === false ? "on s" : "alt") + '">Sai</button></div>'; }).join("") + '<button id="sendTf"' + (tfSel.every(function (x) { return x !== null; }) ? "" : " disabled") + ">Gửi</button></div>";
       else if (q.open && q.type === "mc") h += '<div class="opts">' + ["A", "B", "C", "D"].map(function (x) { return '<button data-ans="' + x + '">' + x + "</button>"; }).join("") + "</div>";
       else if (q.open) h += '<input id="sa" maxlength="80" placeholder="Nhập câu trả lời"><button id="sendA">Gửi</button>';
-      else h += '<p class="mut">Em chưa trả lời câu này.</p>';
+      else if (q.mine == null) h += '<p class="mut">Em chưa trả lời câu này.</p>';
+      if (!q.open && q.key) {
+        var good = q.type === "tf" ? (q.ok && q.ok.every(Boolean)) : q.ok;
+        h += '<div class="res ' + (q.mine == null ? "" : good ? "good" : "bad") + '"><b>' + (q.mine == null ? "Đáp án" : good ? "Đúng rồi!" : "Chưa đúng") + "</b><br>Đáp án đúng: <b>" + esc(q.type === "tf" ? DS(q.key) : q.type === "short" ? q.key.v : q.key) + "</b>";
+        if (q.type === "tf" && q.ok && q.mine != null) h += '<br><span class="mut">Em đúng ' + q.ok.filter(Boolean).length + "/" + q.key.length + " ý</span>";
+        if (q.e) h += '<div class="mut" style="margin-top:6px">' + esc(q.e) + "</div>";
+        h += "</div>";
+      }
       h += "</div>";
     }
     h += '<div class="err">' + esc(err) + "</div>";

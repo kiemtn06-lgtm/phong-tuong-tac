@@ -47,6 +47,16 @@ function isTeacher(req) {
   return crypto.timingSafeEqual(a, b);
 }
 function newCode() { for (let i = 0; i < 50; i++) { const c = String(crypto.randomInt(1000, 10000)); if (!S.sessions[c]) return c; } return null; }
+function num(x) { const n = parseFloat(String(x).trim().replace(',', '.')); return isFinite(n) ? n : NaN; }
+// chấm một câu trả lời theo đáp án giáo viên gửi kèm (nếu có). mc, short: true/false. tf: mảng đúng/sai từng ý.
+function gradeQ(q, v) {
+  if (!q.key || v == null) return null;
+  if (q.type === 'mc') return v === q.key;
+  if (q.type === 'tf') return Array.isArray(v) ? q.key.map((k, i) => v[i] === k) : null;
+  const a = num(v), b = num(q.key.v);
+  if (isFinite(a) && isFinite(b)) return Math.abs(a - b) <= (q.key.tol || 0) + 1e-9;
+  return String(v).trim().toLowerCase() === String(q.key.v).trim().toLowerCase();
+}
 function cleanName(s) { return String(s == null ? '' : s).trim().slice(0, 60); }
 
 // ---- học sinh nhìn thấy gì ----
@@ -57,19 +67,30 @@ function studentView(s, name) {
     roster: s.roster,
     present: s.joined,                       // tên đã có mặt (để ẩn khỏi danh sách chọn)
     me: name && s.roster.includes(name) ? { name, joined: !!s.joined[name], hand: s.hands.some(h => h.name === name), called: s.called === name } : null,
-    q: q ? { id: q.id, type: q.type, label: q.label, open: q.open, mine: name && q.answers[name] != null ? q.answers[name] : null } : null
+    q: q ? studentQ(q, name) : null
   };
+}
+function studentQ(q, name) {
+  const mine = name && q.answers[name] != null ? q.answers[name] : null;
+  const o = { id: q.id, type: q.type, label: q.label, open: q.open, n: q.n, mine };
+  if (!q.open && q.key) { o.key = q.key; o.e = q.e || ''; o.ok = mine == null ? null : gradeQ(q, mine); }
+  return o;
 }
 function teacherView(s) {
   const q = s.q;
   let tally = null;
-  if (q && q.type === 'tf') { tally = [0, 1, 2, 3].map(() => ({ d: 0, s: 0 })); for (const v of Object.values(q.answers)) v.forEach((x, i) => { if (x === true) tally[i].d++; else tally[i].s++; }); }
+  let dung = null, ok = null;
+  if (q && q.type === 'tf') { tally = Array.from({ length: q.n }, () => ({ d: 0, s: 0 })); for (const v of Object.values(q.answers)) v.forEach((x, i) => { if (x === true) tally[i].d++; else tally[i].s++; }); }
   else if (q) { tally = {}; for (const v of Object.values(q.answers)) tally[v] = (tally[v] || 0) + 1; }
+  if (q && q.key) {
+    dung = 0; ok = {};
+    for (const [n, v] of Object.entries(q.answers)) { const g = gradeQ(q, v); ok[n] = g; if (q.type === 'tf' ? g.every(Boolean) : g) dung++; }
+  }
   return {
     lop: s.lop, bai: s.bai, ended: !!s.ended, total: s.roster.length,
     joined: Object.keys(s.joined).map(n => ({ name: n, t: s.joined[n] })),
     hands: s.hands, called: s.called,
-    q: q ? { id: q.id, type: q.type, label: q.label, open: q.open, count: Object.keys(q.answers).length, tally, answers: q.type === 'short' ? q.answers : undefined } : null
+    q: q ? { id: q.id, type: q.type, label: q.label, open: q.open, count: Object.keys(q.answers).length, n: q.n, key: q.key, e: q.e, dung, tally, answers: q.type === 'short' ? q.answers : undefined, ok: q.type === 'short' ? ok : undefined } : null
   };
 }
 
@@ -108,7 +129,7 @@ const server = http.createServer(async (req, res) => {
         if (q.answers[name] != null) return send(res, 409, { error: 'Em đã gửi rồi' });
         let v = b.value;
         if (q.type === 'mc') { if (!['A', 'B', 'C', 'D'].includes(v)) return send(res, 400, { error: 'Đáp án không hợp lệ' }); }
-        else if (q.type === 'tf') { if (!Array.isArray(v) || v.length !== 4 || !v.every(x => x === true || x === false)) return send(res, 400, { error: 'Chọn Đúng hoặc Sai cho cả 4 ý' }); }
+        else if (q.type === 'tf') { if (!Array.isArray(v) || v.length !== q.n || !v.every(x => x === true || x === false)) return send(res, 400, { error: 'Chọn Đúng hoặc Sai cho tất cả các ý' }); }
         else { v = String(v == null ? '' : v).trim().slice(0, 80); if (!v) return send(res, 400, { error: 'Nhập câu trả lời' }); }
         q.answers[name] = v; save(); return send(res, 200, { ok: true });
       }
@@ -129,7 +150,7 @@ const server = http.createServer(async (req, res) => {
       if (!s && p !== '/api/t/ping') return send(res, 404, { error: 'Phòng không còn (máy chủ có thể đã khởi động lại)' });
       if (req.method === 'GET' && p === '/api/t/state') return send(res, 200, teacherView(s));
       if (req.method === 'GET' && p === '/api/t/export') {
-        return send(res, 200, { lop: s.lop, bai: s.bai, created: s.created, roster: s.roster, joined: s.joined, qlog: s.qlog.concat(s.q ? [{ id: s.q.id, type: s.q.type, label: s.q.label, answers: s.q.answers }] : []) });
+        return send(res, 200, { lop: s.lop, bai: s.bai, created: s.created, roster: s.roster, joined: s.joined, qlog: s.qlog.concat(s.q ? [{ id: s.q.id, type: s.q.type, label: s.q.label, key: s.q.key, answers: s.q.answers }] : []) });
       }
       if (req.method === 'POST' && p === '/api/t/ctl') {
         const b = await readJson(req), a = b.action;
@@ -137,8 +158,14 @@ const server = http.createServer(async (req, res) => {
         else if (a === 'uncall') s.called = '';
         else if (a === 'dropHand') s.hands = s.hands.filter(h => h.name !== cleanName(b.name));
         else if (a === 'question') {
-          if (s.q) s.qlog.push({ id: s.q.id, type: s.q.type, label: s.q.label, answers: s.q.answers });
-          s.q = { id: crypto.randomBytes(4).toString('hex'), type: ['short', 'tf'].includes(b.type) ? b.type : 'mc', label: cleanName(b.label).slice(0, 80), open: true, answers: {} };
+          if (s.q) s.qlog.push({ id: s.q.id, type: s.q.type, label: s.q.label, key: s.q.key, answers: s.q.answers });
+          const type = ['short', 'tf'].includes(b.type) ? b.type : 'mc';
+          let key = null, n = 4;
+          if (type === 'mc' && ['A', 'B', 'C', 'D'].includes(b.key)) key = b.key;
+          else if (type === 'tf' && Array.isArray(b.key) && b.key.length >= 2 && b.key.length <= 6 && b.key.every(x => x === true || x === false)) key = b.key.slice();
+          else if (type === 'short' && b.key && b.key.v != null && String(b.key.v).trim()) key = { v: String(b.key.v).trim().slice(0, 40), tol: Math.max(0, num(b.key.tol) || 0) };
+          if (type === 'tf') n = key ? key.length : 4;
+          s.q = { id: crypto.randomBytes(4).toString('hex'), type, label: cleanName(b.label).slice(0, 80), open: true, n, key, e: key ? String(b.e || '').slice(0, 400) : '', answers: {} };
         }
         else if (a === 'closeQ') { if (s.q) s.q.open = false; }
         else if (a === 'end') s.ended = true;
