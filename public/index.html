@@ -55,10 +55,11 @@ button:disabled{opacity:.5}
         '</select><button id="join">Vào lớp</button><div class="err">' + esc(err) + "</div></div>";
       app.innerHTML = h; return;
     }
-    h += '<div class="mut">Em: <b>' + esc(name) + "</b></div>";
+    h += '<div class="mut">Em: <b>' + esc(name) + '</b> &nbsp;<span style="color:var(--ok)">● Đã vào lớp</span></div>';
     if (st.me.called) h += '<div class="called">Thầy/cô đang gọi em trình bày!</div>';
     h += '<div class="card"><button id="hand" class="' + (st.me.hand ? "" : "alt") + '">' + (st.me.hand ? "Đang giơ tay (bấm để hạ)" : "Giơ tay xin phát biểu") + "</button></div>";
     var q = st.q;
+    if (!q) h += '<div class="card"><b>Câu hỏi</b><p class="mut">Chưa có câu hỏi. Khi thầy/cô đưa câu hỏi, ô trả lời sẽ hiện ngay ở đây (không cần tải lại trang).</p></div>';
     if (q) {
       h += '<div class="card"><b>' + (q.open ? "Câu hỏi" : "Câu hỏi (đã đóng)") + "</b>" + (q.label ? '<div class="mut">' + esc(q.label) + "</div>" : "");
       if (q.mine != null) h += '<p>Em đã trả lời: <b>' + esc(q.mine) + "</b></p>";
