@@ -63,7 +63,8 @@ function studentView(s, name) {
 function teacherView(s) {
   const q = s.q;
   let tally = null;
-  if (q) { tally = {}; for (const v of Object.values(q.answers)) tally[v] = (tally[v] || 0) + 1; }
+  if (q && q.type === 'tf') { tally = [0, 1, 2, 3].map(() => ({ d: 0, s: 0 })); for (const v of Object.values(q.answers)) v.forEach((x, i) => { if (x === true) tally[i].d++; else tally[i].s++; }); }
+  else if (q) { tally = {}; for (const v of Object.values(q.answers)) tally[v] = (tally[v] || 0) + 1; }
   return {
     lop: s.lop, bai: s.bai, ended: !!s.ended, total: s.roster.length,
     joined: Object.keys(s.joined).map(n => ({ name: n, t: s.joined[n] })),
@@ -107,6 +108,7 @@ const server = http.createServer(async (req, res) => {
         if (q.answers[name] != null) return send(res, 409, { error: 'Em đã gửi rồi' });
         let v = b.value;
         if (q.type === 'mc') { if (!['A', 'B', 'C', 'D'].includes(v)) return send(res, 400, { error: 'Đáp án không hợp lệ' }); }
+        else if (q.type === 'tf') { if (!Array.isArray(v) || v.length !== 4 || !v.every(x => x === true || x === false)) return send(res, 400, { error: 'Chọn Đúng hoặc Sai cho cả 4 ý' }); }
         else { v = String(v == null ? '' : v).trim().slice(0, 80); if (!v) return send(res, 400, { error: 'Nhập câu trả lời' }); }
         q.answers[name] = v; save(); return send(res, 200, { ok: true });
       }
@@ -136,7 +138,7 @@ const server = http.createServer(async (req, res) => {
         else if (a === 'dropHand') s.hands = s.hands.filter(h => h.name !== cleanName(b.name));
         else if (a === 'question') {
           if (s.q) s.qlog.push({ id: s.q.id, type: s.q.type, label: s.q.label, answers: s.q.answers });
-          s.q = { id: crypto.randomBytes(4).toString('hex'), type: b.type === 'short' ? 'short' : 'mc', label: cleanName(b.label).slice(0, 80), open: true, answers: {} };
+          s.q = { id: crypto.randomBytes(4).toString('hex'), type: ['short', 'tf'].includes(b.type) ? b.type : 'mc', label: cleanName(b.label).slice(0, 80), open: true, answers: {} };
         }
         else if (a === 'closeQ') { if (s.q) s.q.open = false; }
         else if (a === 'end') s.ended = true;

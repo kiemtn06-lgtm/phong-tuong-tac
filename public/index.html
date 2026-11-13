@@ -22,6 +22,10 @@ button:disabled{opacity:.5}
 .opts button.on{background:var(--ok)}
 .called{background:#ffd166;color:#3a2a00;text-align:center;font-size:22px;font-weight:600;border-radius:12px;padding:16px;margin:12px 0}
 .err{color:#d1242f;min-height:1.4em}
+.tfr{display:grid;grid-template-columns:28px 1fr 1fr;gap:8px;align-items:center;margin:6px 0}
+.tfr button{margin:0;padding:12px 0}
+.tfr button.on{background:var(--ok)}
+.tfr button.on.s{background:#d1242f}
 </style>
 </head>
 <body>
@@ -32,7 +36,7 @@ button:disabled{opacity:.5}
   var qs = new URLSearchParams(location.search);
   var code = (qs.get("c") || "").replace(/\D/g, "").slice(0, 4);
   var K = function (n) { return "tt." + code + "." + n; };
-  var st = null, err = "", name = "", tok = "", timer = null, typing = false, pick = "", last = "";
+  var tfSel = [null, null, null, null], tfQ = "", st = null, err = "", name = "", tok = "", timer = null, typing = false, pick = "", last = "";
   function get(k) { try { return localStorage.getItem(k) || ""; } catch (e) { return ""; } }
   function put(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
   function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
@@ -62,7 +66,9 @@ button:disabled{opacity:.5}
     if (!q) h += '<div class="card"><b>Câu hỏi</b><p class="mut">Chưa có câu hỏi. Khi thầy/cô đưa câu hỏi, ô trả lời sẽ hiện ngay ở đây (không cần tải lại trang).</p></div>';
     if (q) {
       h += '<div class="card"><b>' + (q.open ? "Câu hỏi" : "Câu hỏi (đã đóng)") + "</b>" + (q.label ? '<div class="mut">' + esc(q.label) + "</div>" : "");
-      if (q.mine != null) h += '<p>Em đã trả lời: <b>' + esc(q.mine) + "</b></p>";
+      if (tfQ !== q.id) { tfQ = q.id; tfSel = [null, null, null, null]; }
+      if (q.mine != null) h += '<p>Em đã trả lời: <b>' + esc(Array.isArray(q.mine) ? q.mine.map(function (x, i) { return "abcd"[i] + ":" + (x ? "Đ" : "S"); }).join("  ") : q.mine) + "</b></p>";
+      else if (q.open && q.type === "tf") h += '<div class="tf">' + [0, 1, 2, 3].map(function (i) { return '<div class="tfr"><b>' + "abcd"[i] + ')</b><button data-tf="' + i + ':1" class="' + (tfSel[i] === true ? "on" : "alt") + '">Đúng</button><button data-tf="' + i + ':0" class="' + (tfSel[i] === false ? "on s" : "alt") + '">Sai</button></div>'; }).join("") + '<button id="sendTf"' + (tfSel.every(function (x) { return x !== null; }) ? "" : " disabled") + ">Gửi</button></div>";
       else if (q.open && q.type === "mc") h += '<div class="opts">' + ["A", "B", "C", "D"].map(function (x) { return '<button data-ans="' + x + '">' + x + "</button>"; }).join("") + "</div>";
       else if (q.open) h += '<input id="sa" maxlength="80" placeholder="Nhập câu trả lời"><button id="sendA">Gửi</button>';
       else h += '<p class="mut">Em chưa trả lời câu này.</p>';
@@ -87,6 +93,9 @@ button:disabled{opacity:.5}
       act("join", {}); return;
     }
     if (t.id === "hand") return act("hand", {});
+    var tfb = t.getAttribute && t.getAttribute("data-tf");
+    if (tfb) { var pr = tfb.split(":"); tfSel[+pr[0]] = pr[1] === "1"; last = ""; draw(); return; }
+    if (t.id === "sendTf") { if (tfSel.some(function (x) { return x === null; })) return; return act("answer", { value: tfSel.slice() }); }
     if (t.id === "sendA") { var s = document.getElementById("sa").value; typing = false; return act("answer", { value: s }); }
     if (t.getAttribute && t.getAttribute("data-ans")) return act("answer", { value: t.getAttribute("data-ans") });
   });
