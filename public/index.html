@@ -32,7 +32,7 @@ button:disabled{opacity:.5}
   var qs = new URLSearchParams(location.search);
   var code = (qs.get("c") || "").replace(/\D/g, "").slice(0, 4);
   var K = function (n) { return "tt." + code + "." + n; };
-  var st = null, err = "", name = "", tok = "", timer = null, typing = false;
+  var st = null, err = "", name = "", tok = "", timer = null, typing = false, pick = "", last = "";
   function get(k) { try { return localStorage.getItem(k) || ""; } catch (e) { return ""; } }
   function put(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
   function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
@@ -42,7 +42,7 @@ button:disabled{opacity:.5}
     return fetch(u, o).then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || "Lỗi"); return j; }); });
   }
   function poll() {
-    api("state").then(function (j) { st = j; if (!typing) draw(); }, function (e) { err = e.message; st = null; if (!typing) draw(); });
+    api("state").then(function (j) { var k = JSON.stringify(j); st = j; if (k === last || typing) return; last = k; draw(); }, function (e) { err = e.message; st = null; last = ""; if (!typing) draw(); });
   }
   function draw() {
     if (!code) { app.innerHTML = '<div class="card"><h1>Vào lớp</h1><p class="mut">Nhập mã 4 số trên màn hình lớp.</p><input id="mc" inputmode="numeric" maxlength="4" placeholder="Mã phòng"><button id="go">Vào</button></div>'; return; }
@@ -51,7 +51,7 @@ button:disabled{opacity:.5}
     if (st.ended) { app.innerHTML = h + '<div class="card">Tiết học đã kết thúc. Cảm ơn em!</div>'; return; }
     if (!st.me || !st.me.joined) {
       h += '<div class="card"><label class="mut" for="nm">Chọn tên của em</label><select id="nm"><option value="">-- chọn --</option>' +
-        st.roster.map(function (n) { return '<option value="' + esc(n) + '"' + (n === name ? " selected" : "") + (st.present[n] && n !== name ? " disabled" : "") + ">" + esc(n) + (st.present[n] && n !== name ? " (đã vào)" : "") + "</option>"; }).join("") +
+        st.roster.map(function (n) { return '<option value="' + esc(n) + '"' + (n === (pick || name) ? " selected" : "") + (st.present[n] && n !== name ? " disabled" : "") + ">" + esc(n) + (st.present[n] && n !== name ? " (đã vào)" : "") + "</option>"; }).join("") +
         '</select><button id="join">Vào lớp</button><div class="err">' + esc(err) + "</div></div>";
       app.innerHTML = h; return;
     }
@@ -72,13 +72,16 @@ button:disabled{opacity:.5}
     var sa = document.getElementById("sa");
     if (sa) { sa.onfocus = function () { typing = true; }; sa.onblur = function () { typing = false; }; }
   }
-  function act(path, body) { err = ""; return api(path, body).then(poll, function (e) { err = e.message; draw(); }); }
+  function act(path, body) { err = ""; last = ""; return api(path, body).then(poll, function (e) { err = e.message; draw(); }); }
+  app.addEventListener("focusin", function (e) { if (e.target.id === "nm") typing = true; });
+  app.addEventListener("focusout", function (e) { if (e.target.id === "nm") typing = false; });
+  app.addEventListener("change", function (e) { if (e.target.id === "nm") pick = e.target.value; });
   app.addEventListener("click", function (e) {
     var t = e.target;
     if (t.id === "go") { var c = document.getElementById("mc").value.replace(/\D/g, ""); if (c.length === 4) location.search = "?c=" + c; return; }
     if (t.id === "join") {
       var v = document.getElementById("nm").value; if (!v) { err = "Chọn tên của em"; draw(); return; }
-      name = v; put(K("name"), v);
+      name = v; pick = v; typing = false; put(K("name"), v);
       tok = get(K("tok")) || (Math.random().toString(36).slice(2) + Date.now().toString(36)); put(K("tok"), tok);
       act("join", {}); return;
     }
