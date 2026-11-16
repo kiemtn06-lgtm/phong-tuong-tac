@@ -29,6 +29,11 @@ button:disabled{opacity:.5}
 .tfr button{margin:0;padding:12px 0}
 .tfr button.on{background:var(--ok)}
 .tfr button.on.s{background:#d1242f}
+.qh2{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.mr{display:inline-flex;align-items:center;gap:6px;font-size:14px;color:var(--mut);white-space:nowrap}
+.mr svg{width:28px;height:28px}.mr-bg{fill:none;stroke:var(--bd);stroke-width:5}.mr-fg{fill:none;stroke:var(--ac);stroke-width:5;stroke-linecap:round}
+.mr.full .mr-fg{stroke:var(--ok)}.mr b{color:var(--fg)}
+.qtv{font-size:32px;font-weight:700;color:var(--ac);white-space:nowrap}.qtv small{font-size:15px;color:var(--mut);font-weight:600}
 </style>
 </head>
 <body>
@@ -51,6 +56,23 @@ button:disabled{opacity:.5}
   function poll() {
     api("state").then(function (j) { var k = JSON.stringify(j); st = j; if (k === last || typing) return; last = k; draw(); }, function (e) { err = e.message; st = null; last = ""; if (!typing) draw(); });
   }
+  /* vòng tròn tiến độ: n em đã trả lời / tot em có mặt */
+  function ring(n, tot) {
+    tot = Math.max(tot, n); var R = 15, C = 2 * Math.PI * R, f = tot ? n / tot : 0;
+    return '<span class="mr' + (tot && n >= tot ? " full" : "") + '"><svg viewBox="0 0 40 40" aria-hidden="true"><circle class="mr-bg" cx="20" cy="20" r="' + R + '"/><circle class="mr-fg" cx="20" cy="20" r="' + R +
+      '" transform="rotate(-90 20 20)" style="stroke-dasharray:' + C.toFixed(1) + ";stroke-dashoffset:" + (C * (1 - f)).toFixed(1) + '"/></svg><span><b>' + n + "/" + tot + "</b> bạn đã trả lời</span></span>";
+  }
+  /* điểm quá trình: các buổi trước (từ Hồ sơ của thầy/cô) + câu hỏi nhanh có đáp án trong buổi này */
+  function qtCard(q) {
+    if (!q) return "";
+    var t = q.truoc || { b: 0, dg: 0, qk: 0, pv: 0, pn: 0 }, dg = t.dg + q.nay.dg, qk = t.qk + q.nay.qk;
+    var f = function (v) { return (Math.round(v * 10) / 10).toFixed(1).replace(".", ","); };
+    var h = '<div class="card"><div class="qh2"><div><b>Điểm quá trình</b><div class="mut">Câu hỏi nhanh có đáp án' + (t.b ? ", " + t.b + " buổi trước và buổi này" : ", buổi này") + "</div></div>" +
+      '<span class="qtv">' + (qk ? f(dg * 10 / qk) : "—") + "<small>/10</small></span></div>";
+    h += '<div class="mut" style="margin-top:6px">Đúng <b>' + dg + "/" + qk + "</b> câu" + (q.nay.qk ? " · buổi này " + q.nay.dg + "/" + q.nay.qk : "") + (t.qk ? " · các buổi trước " + t.dg + "/" + t.qk : "") + "</div>";
+    if (t.pn) h += '<div class="mut">Điểm phát biểu các buổi trước: <b>' + String(Math.round(t.pv * 10) / 10).replace(".", ",") + "</b> (" + t.pn + " lần)</div>";
+    return h + "</div>";
+  }
   function draw() {
     if (!code) { app.innerHTML = '<div class="card"><h1>Vào lớp</h1><p class="mut">Nhập mã 4 số trên màn hình lớp.</p><input id="mc" inputmode="numeric" maxlength="4" placeholder="Mã phòng"><button id="go">Vào</button></div>'; return; }
     if (!st) { app.innerHTML = '<div class="card"><h1>Tương tác trên lớp</h1><p class="err">' + esc(err) + "</p></div>"; return; }
@@ -64,11 +86,12 @@ button:disabled{opacity:.5}
     }
     h += '<div class="mut">Em: <b>' + esc(name) + '</b> &nbsp;<span style="color:var(--ok)">● Đã vào lớp</span></div>';
     if (st.me.called) h += '<div class="called">Thầy/cô đang gọi em trình bày!</div>';
+    h += qtCard(st.me.qt);
     h += '<div class="card"><button id="hand" class="' + (st.me.hand ? "" : "alt") + '">' + (st.me.hand ? "Đang giơ tay (bấm để hạ)" : "Giơ tay xin phát biểu") + "</button></div>";
     var q = st.q;
     if (!q) h += '<div class="card"><b>Câu hỏi</b><p class="mut">Chưa có câu hỏi. Khi thầy/cô đưa câu hỏi, ô trả lời sẽ hiện ngay ở đây (không cần tải lại trang).</p></div>';
     if (q) {
-      h += '<div class="card"><b>' + (q.open ? "Câu hỏi" : "Câu hỏi (đã đóng)") + "</b>" + (q.label ? '<div class="mut">' + esc(q.label) + "</div>" : "");
+      h += '<div class="card"><div class="qh2"><b>' + (q.open ? "Câu hỏi" : "Câu hỏi (đã đóng)") + "</b>" + (q.open ? ring(q.count || 0, st.nJoined || 0) : "") + "</div>" + (q.label ? '<div class="mut">' + esc(q.label) + "</div>" : "");
       var n = q.n || 4, L = "abcdef";
       if (tfQ !== q.id) { tfQ = q.id; tfSel = []; for (var z = 0; z < n; z++) tfSel.push(null); }
       var DS = function (arr) { return arr.map(function (x, i) { return L[i] + ":" + (x ? "Đ" : "S"); }).join("  "); };

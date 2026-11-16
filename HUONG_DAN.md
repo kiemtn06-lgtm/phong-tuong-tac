@@ -24,3 +24,8 @@ Giáo viên điều khiển ngay trong chế độ "Lên lớp" của Hồ sơ d
 - Gói miễn phí của Render tự ngủ sau ~15 phút không dùng; mở "Phòng QR" trước giờ học vài phút. Máy chủ khởi động lại thì phòng đang mở có thể mất, nhưng dữ liệu đã lưu trong Hồ sơ thì không.
 - Mỗi tên chỉ vào được bằng một thiết bị; thiết bị khác chọn trùng tên sẽ bị chặn.
 - Phòng tự xóa sau 12 giờ. Máy chủ chỉ giữ tên trong danh sách lớp gửi lên, không lưu thông tin khác.
+
+## Điểm quá trình, vòng tròn tiến độ (16/11/2026)
+- Khi bấm **Phòng QR**, Hồ sơ gửi kèm tóm tắt các buổi trước của từng em (câu hỏi nhanh đúng / có đáp án, điểm phát biểu) lấy từ dữ liệu đã lưu trong Hồ sơ.
+- Trang học sinh hiện **Điểm quá trình** = (câu đúng các buổi trước + buổi này) / (câu có đáp án) × 10, kèm điểm phát biểu các buổi trước. Chỉ câu hỏi nhanh có đáp án mới tính.
+- Câu hỏi đang mở có **vòng tròn** "số em đã trả lời / số em có mặt" trên điện thoại học sinh và trong khung Phòng QR của giáo viên.

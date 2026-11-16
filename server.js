@@ -58,6 +58,16 @@ function gradeQ(q, v) {
   return String(v).trim().toLowerCase() === String(q.key.v).trim().toLowerCase();
 }
 function cleanName(s) { return String(s == null ? '' : s).trim().slice(0, 60); }
+// điểm quá trình của một em: các buổi trước (Hồ sơ gửi lên khi mở phòng) + câu hỏi nhanh có đáp án đã đóng trong buổi này
+function qtOf(s, name) {
+  let dg = 0, qk = 0;
+  for (const r of s.qlog.concat(s.q && !s.q.open ? [s.q] : [])) {
+    if (!r.key) continue; qk++;
+    const g = r.answers[name] == null ? null : gradeQ(r, r.answers[name]);
+    if (r.type === 'tf' ? Array.isArray(g) && g.every(Boolean) : g === true) dg++;
+  }
+  return { truoc: (s.qt && s.qt[name]) || null, nay: { dg, qk } };
+}
 
 // ---- học sinh nhìn thấy gì ----
 function studentView(s, name) {
@@ -66,13 +76,14 @@ function studentView(s, name) {
     lop: s.lop, bai: s.bai, ended: !!s.ended,
     roster: s.roster,
     present: s.joined,                       // tên đã có mặt (để ẩn khỏi danh sách chọn)
-    me: name && s.roster.includes(name) ? { name, joined: !!s.joined[name], hand: s.hands.some(h => h.name === name), called: s.called === name } : null,
+    me: name && s.roster.includes(name) ? { name, joined: !!s.joined[name], hand: s.hands.some(h => h.name === name), called: s.called === name, qt: qtOf(s, name) } : null,
+    nJoined: Object.keys(s.joined).length,   // cho vòng tròn: số em đã trả lời / số em có mặt
     q: q ? studentQ(q, name) : null
   };
 }
 function studentQ(q, name) {
   const mine = name && q.answers[name] != null ? q.answers[name] : null;
-  const o = { id: q.id, type: q.type, label: q.label, open: q.open, n: q.n, mine };
+  const o = { id: q.id, type: q.type, label: q.label, open: q.open, n: q.n, mine, count: Object.keys(q.answers).length };
   if (!q.open && q.key) { o.key = q.key; o.e = q.e || ''; o.ok = mine == null ? null : gradeQ(q, mine); }
   return o;
 }
@@ -143,7 +154,14 @@ const server = http.createServer(async (req, res) => {
         const roster = Array.from(new Set((Array.isArray(b.roster) ? b.roster : []).map(cleanName).filter(Boolean))).slice(0, MAX_ROSTER);
         if (!roster.length) return send(res, 400, { error: 'Lớp chưa có danh sách học sinh' });
         const code = newCode(); if (!code) return send(res, 503, { error: 'Hết mã phòng, thử lại sau' });
-        S.sessions[code] = { code, lop: cleanName(b.lop), bai: cleanName(b.bai), roster, created: Date.now(), joined: {}, tokens: {}, hands: [], called: '', q: null, qlog: [], ended: false };
+        // qt: tóm tắt các buổi trước của từng em do Hồ sơ gửi (b: số buổi, dg/qk: câu đúng / câu có đáp án, pv: tổng điểm phát biểu, pn: số lần phát biểu)
+        const qt = {};
+        if (b.qt && typeof b.qt === 'object') for (const n of roster) {
+          const x = b.qt[n]; if (!x || typeof x !== 'object') continue;
+          const I = v => Math.max(0, Math.min(100000, parseInt(v, 10) || 0));
+          qt[n] = { b: I(x.b), dg: I(x.dg), qk: I(x.qk), pv: Math.max(0, Math.min(100000, Number(x.pv) || 0)), pn: I(x.pn) };
+        }
+        S.sessions[code] = { code, lop: cleanName(b.lop), bai: cleanName(b.bai), roster, created: Date.now(), joined: {}, tokens: {}, hands: [], called: '', q: null, qlog: [], ended: false, qt };
         save(); return send(res, 200, { code });
       }
       const s = S.sessions[String(url.searchParams.get('code') || '')];
