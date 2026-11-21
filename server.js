@@ -7,7 +7,7 @@ const path = require('path');
 const crypto = require('crypto');
 
 const PORT = process.env.PORT || 3000;
-const TEACHER_PASS = process.env.TEACHER_PASS || 'giaovien';
+const TEACHER_PASS = process.env.TEACHER_PASS || 'cauhoi';
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
 const STATE_FILE = path.join(DATA_DIR, 'state.json');
 const MAX_AGE = 12 * 3600 * 1000;   // phiên tự xóa sau 12 giờ
